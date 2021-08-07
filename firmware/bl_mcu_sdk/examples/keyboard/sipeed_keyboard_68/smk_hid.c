@@ -1,6 +1,7 @@
 #include "smk_hid.h"
 #include "smk_keyscan.h"
 #include "hal_usb.h"
+#include "hal_gpio.h"
 #include "usbd_core.h"
 #include "usbd_hid.h"
 
@@ -47,6 +48,8 @@ static usbd_interface_t hid_intf;
 void usbd_hid_int_callback(uint8_t ep)
 {
     uint8_t sendbuffer[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }; //A
+    if (gpio_read(28))
+        sendbuffer[2] = 0x5E;
     usbd_ep_write(HID_INT_EP, sendbuffer, 8, NULL);
     //MSG("A\r\n");
 }
