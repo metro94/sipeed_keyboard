@@ -26,7 +26,7 @@
 #include "bl702.h"
 #include "smk_ble.h"
 #include "smk_usb.h"
-
+#include "smk_matrix.h"
 
 extern uint8_t _heap_start;
 extern uint8_t _heap_size; // @suppress("Type cannot be resolved")
@@ -134,6 +134,9 @@ int main(void)
     static StackType_t usb_init_stack[512];
     static StaticTask_t usb_init_task_h;
 
+    static smk_matrix_t kb_matrix;
+
+    GLB_Select_Internal_Flash();
     bflb_platform_init(0);
 
     MSG("Sipeed Machine Keyboard start...\r\n");
@@ -144,7 +147,7 @@ int main(void)
     MSG("[SMK] Device init...\r\n");
     xTaskCreateStatic(ble_init_task, (char *)"ble_init", sizeof(ble_init_stack) / 4, NULL, 15, ble_init_stack, &ble_init_task_h);
     xTaskCreateStatic(usb_init_task, (char *)"usb_init", sizeof(usb_init_stack) / 4, NULL, 15, usb_init_stack, &usb_init_task_h);
-
+    smk_matrix_init(&kb_matrix);
 
     MSG("[SMK] Start task scheduler...\r\n");
     vTaskStartScheduler();

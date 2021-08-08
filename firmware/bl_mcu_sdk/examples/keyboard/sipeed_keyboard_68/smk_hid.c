@@ -4,6 +4,8 @@
 #include "usbd_core.h"
 #include "usbd_hid.h"
 
+#include "third_party/quantum_keycodes.h"
+
 static const uint8_t hid_keyboard_report_desc[HID_KEYBOARD_REPORT_DESC_SIZE] = {
     0x05, 0x01, // USAGE_PAGE (Generic Desktop)
     0x09, 0x06, // USAGE (Keyboard)
@@ -44,10 +46,15 @@ extern struct device *usb_fs;
 static usbd_class_t hid_class;
 static usbd_interface_t hid_intf;
 
+static uint8_t flag = 0;
+static uint8_t sendbuffer[2][8] = {
+    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
+};
+
 void usbd_hid_int_callback(uint8_t ep)
 {
-    uint8_t sendbuffer[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }; //A
-    usbd_ep_write(HID_INT_EP, sendbuffer, 8, NULL);
+    usbd_ep_write(HID_INT_EP, sendbuffer[flag], 8, NULL);
     //MSG("A\r\n");
 }
 
@@ -63,4 +70,50 @@ void smk_hid_usb_init()
     usbd_hid_add_interface(&hid_class, &hid_intf);
     usbd_interface_add_endpoint(&hid_intf, &hid_in_ep);
     usbd_hid_report_descriptor_register(0, hid_keyboard_report_desc, HID_KEYBOARD_REPORT_DESC_SIZE);
+}
+
+void smk_hid_add_key(uint8_t keycode)
+{
+    if (IS_MOD(keycode)) {
+        sendbuffer[flag][0] |= 1U << (keycode - KC_LCTRL);
+    } else {
+        uint8_t *buf = sendbuffer[flag ^ 1U];
+
+        if (sendbuffer[flag][7] != 0x00U) {
+            return;
+        }
+
+        for (size_t i = 2; i < 7; ++i) {
+            if (sendbuffer[flag][i] == keycode) {
+                return;
+            } else if (sendbuffer[flag][i] > keycode || sendbuffer[flag][i] == 0x00U) {
+                memcpy(buf, sendbuffer[flag], i);
+                buf[i] = keycode;
+                memcpy(buf + i + 1, sendbuffer[flag] + i, 8 - i - 1);
+                flag ^= 1U;
+                return;
+            }
+        }
+
+        buf[7] = keycode;
+    }
+}
+
+void smk_hid_remove_key(uint8_t keycode)
+{
+    if (IS_MOD(keycode)) {
+        sendbuffer[flag][0] &= ~(1U << (keycode - KC_LCTRL));
+    } else {
+        uint8_t *buf = sendbuffer[flag ^ 1];
+
+        for (size_t i = 2; i < 8; ++i) {
+            if (sendbuffer[flag][i] == keycode) {
+                memcpy(buf, sendbuffer[flag], i);
+                memcpy(buf + i, sendbuffer[flag] + i + 1, 8 - i - 1);
+                buf[7] = 0x00;
+                flag ^= 1U;
+                break;
+            }
+        }
+    }
 }

@@ -11,4 +11,9 @@
 
 void smk_hid_usb_init();
 
+#include <stdint.h>
+
+void smk_hid_add_key(uint8_t keycode);
+void smk_hid_remove_key(uint8_t keycode);
+
 #endif
