@@ -22,9 +22,6 @@ static const uint8_t hid_keyboard_report_desc[HID_KEYBOARD_REPORT_DESC_SIZE] = {
     0x75, 0x01, // REPORT_SIZE (1)
     0x95, 0x08, // REPORT_COUNT (8)
     0x81, 0x02, // INPUT (Data,Var,Abs)
-    0x95, 0x01, // REPORT_COUNT (1)
-    0x75, 0x08, // REPORT_SIZE (8)
-    0x81, 0x03, // INPUT (Cnst,Var,Abs)
     0x95, 0x05, // REPORT_COUNT (5)
     0x75, 0x01, // REPORT_SIZE (1)
     0x05, 0x08, // USAGE_PAGE (LEDs)
@@ -34,14 +31,14 @@ static const uint8_t hid_keyboard_report_desc[HID_KEYBOARD_REPORT_DESC_SIZE] = {
     0x95, 0x01, // REPORT_COUNT (1)
     0x75, 0x03, // REPORT_SIZE (3)
     0x91, 0x03, // OUTPUT (Cnst,Var,Abs)
-    0x95, 0x06, // REPORT_COUNT (6)
-    0x75, 0x08, // REPORT_SIZE (8)
-    0x15, 0x00, // LOGICAL_MINIMUM (0)
-    0x25, 0xFF, // LOGICAL_MAXIMUM (255)
     0x05, 0x07, // USAGE_PAGE (Keyboard)
+    0x15, 0x00, // LOGICAL_MINIMUM (0)
+    0x25, 0x01, // LOGICAL_MAXIMUM (1)
     0x19, 0x00, // USAGE_MINIMUM (Reserved (no event indicated))
     0x29, 0x65, // USAGE_MAXIMUM (Keyboard Application)
-    0x81, 0x00, // INPUT (Data,Ary,Abs)
+    0x95, 0x78, // REPORT_COUNT (120)
+    0x75, 0x01, // REPORT_SIZE (1)
+    0x81, 0x02, // INPUT (Data,Var,Abs)
     0xc0        // END_COLLECTION
 };
 
@@ -51,7 +48,7 @@ static usbd_class_t hid_class;
 static usbd_interface_t hid_intf;
 
 typedef struct {
-    uint8_t buf[2][8];
+    uint8_t buf[2][16];
     uint8_t flag;
 } smk_usb_hid_type;
 
@@ -67,22 +64,7 @@ static void smk_usb_hid_add_key(smk_usb_hid_type *hid_usb, keycode_type keycode)
     if (IS_MOD_KEYS(keycode)) {
         buf[0] |= 1U << (keycode - KC_LCTRL);
     } else {
-        if (buf[7] != KC_NO) {
-            return;
-        }
-
-        uint8_t idx;
-        for (idx = 2; idx < 8; ++idx) {
-            if (buf[idx] == KC_NO || buf[idx] == keycode) {
-                break;
-            } else if (buf[idx] > keycode) {
-                for (uint8_t i = 7; i > idx; --i) {
-                    buf[i] = buf[i - 1];
-                }
-                break;
-            }
-        }
-        buf[idx] = keycode;
+        buf[1 + keycode / 8] |= 1U << (keycode % 8);
     }
 }
 
@@ -93,29 +75,21 @@ static void smk_usb_hid_remove_key(smk_usb_hid_type *hid_usb, keycode_type keyco
     if (IS_MOD_KEYS(keycode)) {
         buf[0] &= ~(1U << (keycode - KC_LCTRL));
     } else {
-        for (uint8_t idx = 2; idx < 8; ++idx) {
-            if (buf[idx] == keycode) {
-                for (uint8_t i = idx + 1; i < 8; ++i) {
-                    buf[i - 1] = buf[i];
-                }
-                buf[7] = KC_NO;
-                break;
-            }
-        }
+        buf[1 + keycode / 8] &= ~(1U << (keycode % 8));
     }
 }
 
 static void smk_usb_hid_commit(smk_usb_hid_type *hid_usb)
 {
     hid_usb->flag ^= 1;
-    for (uint8_t idx = 0; idx < 8; ++idx) {
+    for (uint8_t idx = 0; idx < 16; ++idx) {
         hid_usb->buf[hid_usb->flag ^ 1][idx] = hid_usb->buf[hid_usb->flag][idx];
     }
 }
 
 void usbd_hid_int_callback(uint8_t ep)
 {
-    usbd_ep_write(HID_INT_EP, hid_usb.buf[hid_usb.flag], 8, NULL);
+    usbd_ep_write(HID_INT_EP, hid_usb.buf[hid_usb.flag], HID_INT_EP_SIZE, NULL);
 }
 void usbd_hid_out_callback(uint8_t ep)
 {
