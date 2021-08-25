@@ -13,6 +13,7 @@
 #define RGB_DEBUG_AONR  5
 #define RGB_DEBUG_AONG  6
 #define RGB_DEBUG_AONB  7
+#define RGB_DEBUG_ECG   8
 
 extern int rgb_debug_mode;
 
